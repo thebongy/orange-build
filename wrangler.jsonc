@@ -1,0 +1,149 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+ {
+	// "$schema": "node_modules/wrangler/config-schema.json",
+	"name": "orange-build",
+	"main": "worker/index.ts",
+	"compatibility_date": "2025-08-10",
+	"compatibility_flags": ["nodejs_compat"],
+	"assets": {
+		"directory": "dist",
+		"not_found_handling": "single-page-application",
+		// "run_worker_first": ["!/src/*", "!/api/docs/*"],
+        "run_worker_first": true,
+        "binding": "ASSETS"
+	},
+	"observability": {
+		"enabled": true
+	},
+	/**
+	 * Bindings
+	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
+	 * databases, object storage, AI inference, real-time communication and more.
+	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
+	 */
+	"ai": {
+		"binding": "AI"
+	},
+    "dispatch_namespaces": [
+        {
+            "binding": "DISPATCHER",
+            "namespace": "orange-build-default-namespace",
+            "experimental_remote": true
+        }
+    ],
+	"containers": [
+		{
+			"class_name": "UserAppSandboxService",
+			"image": "./SandboxDockerfile",
+			"max_instances": 200,
+            "configuration": {
+              "vcpu": 4,
+              "memory_mib": 4096,
+              "disk": {
+                "size_mb": 10240
+              }
+            },
+            "rollout_step_percentage": 100
+		},
+        {
+          "class_name": "DeployerService",
+          "image": "./DeployerDockerfile",
+          "max_instances": 1,
+          "configuration": {
+            "vcpu": 4,
+            "memory_mib": 2048,
+            "disk": {
+              "size": "20GB"
+            }
+          },
+          "rollout_step_percentage": 100
+        }
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "orange-build-db",
+			"database_id": "eb00b6fb-1323-4045-bd6a-64adff7555e5",
+			"migrations_dir": "migrations"
+			// "experimental_remote": true
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"class_name": "CodeGeneratorAgent",
+				"name": "CodeGenObject"
+			},
+			// {
+			// 	"class_name": "SmartCodeGeneratorAgent",
+			// 	"name": "CodeGenObject"
+			// },
+            {
+                "class_name": "UserAppSandboxService",
+                "name": "Sandbox"
+            },
+            {
+                "class_name": "DeployerService",
+                "name": "DeployerServiceObject"
+            }
+		]
+	},
+    "r2_buckets": [
+      {
+        "binding": "TEMPLATES_BUCKET",
+        "bucket_name": "orange-build-templates",
+        "experimental_remote": true
+      }
+    ],
+    "kv_namespaces": [
+        {
+            "binding": "INSTANCE_REGISTRY",
+            "id": "cdc374b89f1e402996d5c4736a4e6bbf",
+            "experimental_remote": true
+        }
+    ],
+	"migrations": [
+		{
+			"new_sqlite_classes": [
+				"CodeGeneratorAgent",
+				// "SmartCodeGeneratorAgent"
+				"UserAppSandboxService"
+			],
+			"tag": "v1"
+		},
+        {
+            "new_sqlite_classes": [
+                "DeployerService"
+            ],
+            "tag": "v2"
+        }
+	],
+	"services": [
+		{
+			"binding": "RUNNER_SERVICE",
+			"service": "runner-service"
+		}
+	],
+	"routes": [
+	  {
+		"pattern": "build.cloudflare.dev",
+		"custom_domain": true
+	  },
+	  {
+		"pattern": "*build.cloudflare.dev/*",
+		"custom_domain": false
+	  }
+	],
+	"vars": {
+        "TEMPLATES_REPOSITORY": "https://github.com/AshishKumar4/cloudflare-build-templates",
+        "CLOUDFLARE_AI_GATEWAY": "c-coder",
+        "CUSTOM_DOMAIN": "build.rishitbansal.com",
+        "MAX_SANDBOX_INSTANCES": "2",
+        "CLOUDFLARE_AI_GATEWAY_URL": "https://staging.gateway.ai.cfdata.org/v1/a2def15ee67677660388b40204bc3d86/c-coder"
+    },
+	"workers_dev": false,
+	"preview_urls": false
+}
